@@ -24,13 +24,21 @@ type UserRepository interface {
 	FetchAllUsers(c context.Context) ([]User, error)
 	// PromoteByUserID sets the IsAdmin flag to true for the specified user
 	PromoteByUserID(c context.Context, userID string) (int, error)
+
+	// CountUser counts the number of users in the database
+	CountUsers(c context.Context) (int, error)
+	// CheckIfUsernameExists checks if the username exist in database or not
+	CheckIfUsernameExists(c context.Context, username string) (bool, error)
 }
 
 // UserUsercase defines the business logic layer for user-related operations
-type UserUsercase interface {
+type UserUsecase interface {
 	Create(c context.Context, user *User) error
 	FetchByUserID(c context.Context, userID string) (User, error)
 	FetchByUsername(c context.Context, username string) (User, error)
 	FetchAllUsers(c context.Context) ([]User, error)
 	PromoteByUserID(c context.Context, userID string) (int, error)
+	CountUsers(c context.Context) (int, error)
+	CheckIfUsernameExists(c context.Context, username string) (bool, error)
+	Login(ctx context.Context, username, password string) (User, string, error)
 }

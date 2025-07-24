@@ -3,18 +3,15 @@ package controllers
 import (
 	"errors"
 	"net/http"
-	"os"
-	"time"
 
 	domain "github.com/A2SVTask7/Domain"
 	infrastructure "github.com/A2SVTask7/Infrastructure"
-	repositories "github.com/A2SVTask7/Repositories"
 	"github.com/gin-gonic/gin"
 )
 
 // UserController handles user-related HTTP endpoints
 type UserController struct {
-	UserUsecase domain.UserUsercase
+	UserUsecase domain.UserUsecase
 }
 
 // GetUserByID handles GET /users/:id
@@ -28,11 +25,14 @@ func (uc *UserController) GetUserByID(c *gin.Context) {
 
 	user, err := uc.UserUsecase.FetchByUserID(c, id)
 	if err != nil {
-		if errors.Is(err, repositories.ErrUserNotFound) {
+		switch {
+		case errors.Is(err, domain.ErrUserNotFound):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "user not found"})
-			return
+		case errors.Is(err, domain.ErrInvalidUserID):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
 		return
 	}
 	c.IndentedJSON(http.StatusOK, user)
@@ -44,10 +44,6 @@ func (uc *UserController) GetAllUsers(c *gin.Context) {
 	tasks, err := uc.UserUsecase.FetchAllUsers(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch all users"})
-		return
-	}
-	if len(tasks) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "there is no user yet"})
 		return
 	}
 	c.IndentedJSON(http.StatusOK, tasks)
@@ -66,37 +62,19 @@ func (uc *UserController) Login(c *gin.Context) {
 		return
 	}
 
-	user, err := uc.UserUsecase.FetchByUsername(c, body.Username)
+	user, token, err := uc.UserUsecase.Login(c, body.Username, body.Password)
 	if err != nil {
-		if errors.Is(err, repositories.ErrUserNotFound) {
+		switch {
+		case errors.Is(err, domain.ErrUserNotFound):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "user does not exist"})
-			return
+		case errors.Is(err, domain.ErrIncorrectPassword):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "incorrect password"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to login"})
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user id"})
 		return
 	}
 
-	err = infrastructure.ComparePassword(user.Password, body.Password)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "incorrect password"})
-		return
-	}
-
-	// Build JWT claims
-	claims := map[string]any{
-		"sub":      user.ID,
-		"username": user.Username,
-		"exp":      time.Now().Add(time.Hour * 24).Unix(),
-	}
-
-	js := infrastructure.NewJWTService(os.Getenv("JWT_SECRET"))
-	token, err := js.Generate(claims)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "unable to generate jwt token"})
-		return
-	}
-
-	// Set JWT token as cookie
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("Authentication", token, 60*60*24, "", "", true, true)
 	c.IndentedJSON(http.StatusOK, user)
@@ -144,24 +122,41 @@ func (uc *UserController) Register(c *gin.Context) {
 		return
 	}
 
-	users, err := uc.UserUsecase.FetchAllUsers(c)
+	exists, err := uc.UserUsecase.CheckIfUsernameExists(c, body.Username)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count users document"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check username"})
+		return
+	}
+	if exists {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "username already exists"})
 		return
 	}
 
-	// Check for username uniqueness
-	for _, user := range users {
-		if user.Username == body.Username {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "username already exists"})
-			return
-		}
+	// users, err := uc.UserUsecase.FetchAllUsers(c)
+	// if err != nil {
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count users document"})
+	// 	return
+	// }
+	//
+	// // Check for username uniqueness
+	// for _, user := range users {
+	// 	if user.Username == body.Username {
+	// 		c.JSON(http.StatusBadRequest, gin.H{"error": "username already exists"})
+	// 		return
+	// 	}
+	// }
+	//
+
+	count, err := uc.UserUsecase.CountUsers(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count users"})
+		return
 	}
 
 	user := domain.User{
 		Username: body.Username,
 		Password: hashedString,
-		IsAdmin:  len(users) == 0, // first registered user becomes admin
+		IsAdmin:  count == 0, // first registered user becomes admin
 	}
 
 	err = uc.UserUsecase.Create(c, &user)

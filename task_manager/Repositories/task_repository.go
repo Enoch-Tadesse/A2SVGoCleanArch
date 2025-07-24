@@ -62,12 +62,6 @@ func NewTaskRepository(db mongo.Database, collection string) domain.TaskReposito
 	}
 }
 
-// ErrTaskNotFound is returned when a task with the given ID does not exist
-var (
-	ErrTaskNotFound  = errors.New("task not found")
-	ErrInvalidTaskID = errors.New("invalid task id")
-)
-
 // UpdateByTaskID updates a task in the collection using its ID
 // Returns the number of matched and modified documents
 func (tr *taskRepository) UpdateByTaskID(ctx context.Context, task *domain.Task) (int, int, error) {
@@ -103,7 +97,7 @@ func (tr *taskRepository) DeleteByTaskID(ctx context.Context, taskID string) (in
 	// check for valid ID
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return 0, ErrInvalidTaskID
+		return 0, domain.ErrInvalidTaskID
 	}
 
 	tasks := tr.database.Collection(tr.collection)
@@ -145,7 +139,7 @@ func (tr *taskRepository) FetchByTaskID(ctx context.Context, taskID string) (dom
 	// check for valid ID
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return domain.Task{}, ErrInvalidUserID
+		return domain.Task{}, domain.ErrInvalidUserID
 	}
 
 	tasks := tr.database.Collection(tr.collection)
@@ -157,18 +151,18 @@ func (tr *taskRepository) FetchByTaskID(ctx context.Context, taskID string) (dom
 	result := tasks.FindOne(ctx, filter)
 	if result.Err() != nil {
 		if errors.Is(result.Err(), mongo.ErrNoDocuments) {
-			return domain.Task{}, ErrTaskNotFound
+			return domain.Task{}, domain.ErrTaskNotFound
 		}
 		return domain.Task{}, result.Err()
 	}
 
 	// decode the task
-	var task domain.Task
+	var task Task
 	err = result.Decode(&task)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return task, nil
+	return task.toDomain(), nil
 }
 
 // FetchAllTasks retrieves all tasks from the collection
@@ -182,12 +176,12 @@ func (tr *taskRepository) FetchAllTasks(ctx context.Context) ([]domain.Task, err
 	}
 
 	for cursor.TryNext(ctx) {
-		var task domain.Task
+		var task Task
 		if err := cursor.Decode(&task); err != nil {
 			log.Println("Failed to decode tasks in GetAllTasks")
 			continue
 		}
-		results = append(results, task)
+		results = append(results, task.toDomain())
 	}
 
 	return results, nil

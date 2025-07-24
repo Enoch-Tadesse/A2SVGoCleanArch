@@ -33,6 +33,6 @@ type TaskUsecase interface {
 	Create(c context.Context, task *Task) error
 	FetchByTaskID(c context.Context, taskID string) (Task, error)
 	FetchAllTasks(c context.Context) ([]Task, error)
-	DeleteByTaskID(c context.Context, taskID string) (int, error)
-	UpdateByTaskID(c context.Context, task *Task) (int, int, error)
+	DeleteByTaskID(c context.Context, taskID string) error
+	UpdateByTaskID(c context.Context, task *Task) error
 }

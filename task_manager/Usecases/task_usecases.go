@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	domain "github.com/A2SVTask7/Domain"
@@ -23,6 +24,10 @@ func NewTaskUsecase(taskRepository domain.TaskRepository, timeout time.Duration)
 
 // Create adds a new task using the repository with a timeout context
 func (tu *taskUsecase) Create(c context.Context, task *domain.Task) error {
+
+	if task.DueDate.Before(time.Now()) {
+		return domain.ErrInvalidDueDate
+	}
 	ctx, cancel := context.WithTimeout(c, tu.contextTimeout)
 	defer cancel()
 	return tu.taskRepository.Create(ctx, task)
@@ -30,18 +35,44 @@ func (tu *taskUsecase) Create(c context.Context, task *domain.Task) error {
 
 // UpdateByTaskID updates an existing task using its ID
 // Returns the number of matched and modified documents
-func (tu *taskUsecase) UpdateByTaskID(c context.Context, task *domain.Task) (int, int, error) {
+func (tu *taskUsecase) UpdateByTaskID(c context.Context, task *domain.Task) error {
 	ctx, cancel := context.WithTimeout(c, tu.contextTimeout)
 	defer cancel()
-	return tu.taskRepository.UpdateByTaskID(ctx, task)
+
+	// Normalize status field
+	task.Status = strings.ToLower(strings.TrimSpace(task.Status))
+
+	// Validate due date
+	if task.DueDate.Before(time.Now()) {
+		return domain.ErrInvalidDueDate
+	}
+
+	matched, modified, err := tu.taskRepository.UpdateByTaskID(ctx, task)
+	if err != nil {
+		return err
+	}
+
+	if matched == 0 {
+		return domain.ErrTaskNotFound
+	}
+
+	if modified == 0 {
+		return domain.ErrNoChangesMade
+	}
+
+	return nil
 }
 
 // DeleteByTaskID deletes a task using its ID
 // Returns the number of documents deleted
-func (tu *taskUsecase) DeleteByTaskID(c context.Context, taskID string) (int, error) {
+func (tu *taskUsecase) DeleteByTaskID(c context.Context, taskID string) error {
 	ctx, cancel := context.WithTimeout(c, tu.contextTimeout)
 	defer cancel()
-	return tu.taskRepository.DeleteByTaskID(ctx, taskID)
+	count, err := tu.taskRepository.DeleteByTaskID(ctx, taskID)
+	if count == 0 {
+		return domain.ErrTaskNotFound
+	}
+	return err
 }
 
 // FetchByTaskID retrieves a single task by its ID

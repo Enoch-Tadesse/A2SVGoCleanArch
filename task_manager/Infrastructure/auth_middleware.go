@@ -7,7 +7,6 @@ import (
 	"time"
 
 	domain "github.com/A2SVTask7/Domain"
-	repositories "github.com/A2SVTask7/Repositories"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,7 +37,7 @@ func AuthenticationMiddleware(userRepo domain.UserRepository, jwtService JWTServ
 
 		// Check claims
 		if claims.Username == "" || claims.Subject == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing claim ID and Username"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing claim ID or Username"})
 			return
 		}
 
@@ -49,9 +48,9 @@ func AuthenticationMiddleware(userRepo domain.UserRepository, jwtService JWTServ
 		user, err := userRepo.FetchByUserID(ctx, claims.Subject)
 		if err != nil {
 			switch {
-			case errors.Is(err, repositories.ErrInvalidTaskID):
+			case errors.Is(err, domain.ErrInvalidTaskID):
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid user id"})
-			case errors.Is(err, repositories.ErrUserNotFound):
+			case errors.Is(err, domain.ErrUserNotFound):
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user does not exist"})
 			case errors.Is(err, context.DeadlineExceeded):
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "request context expired"})
@@ -95,7 +94,7 @@ func AuthorizationMiddleware(userRepo domain.UserRepository, jwtService JWTServi
 		user, err := userRepo.FetchByUserID(ctx, userCtx.ID)
 		if err != nil {
 			switch {
-			case errors.Is(err, repositories.ErrUserNotFound):
+			case errors.Is(err, domain.ErrUserNotFound):
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user does not exist"})
 			case errors.Is(err, context.DeadlineExceeded):
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "request context expired"})

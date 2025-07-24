@@ -3,12 +3,11 @@ package controllers
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	domain "github.com/A2SVTask7/Domain"
-	repositories "github.com/A2SVTask7/Repositories"
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,6 +19,7 @@ type TaskController struct {
 // CreateTask handles POST /tasks
 // Validates the request, checks for due date, creates a new task
 func (tc *TaskController) CreateTask(c *gin.Context) {
+	log.Println("herer")
 	var body struct {
 		Title       string    `json:"title" binding:"required"`
 		Description string    `json:"description"`
@@ -39,14 +39,13 @@ func (tc *TaskController) CreateTask(c *gin.Context) {
 		Status:      body.Status,
 	}
 
-	if body.DueDate.Before(time.Now()) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "due date can not be in the past"})
-		return
-	}
-
-	err := tc.TaskUsecase.Create(c, &task)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create task: %s", err)})
+	if err := tc.TaskUsecase.Create(c, &task); err != nil {
+		switch {
+		case errors.Is(err, domain.ErrInvalidDueDate):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "due date can't be in the past"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create task"})
+		}
 		return
 	}
 
@@ -63,14 +62,14 @@ func (tc *TaskController) DeleteTask(c *gin.Context) {
 	}
 
 	// Delete the task
-	count, err := tc.TaskUsecase.DeleteByTaskID(c, id)
+	err := tc.TaskUsecase.DeleteByTaskID(c, id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete task"})
-		return
-	}
-
-	if count == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "task not found"})
+		switch {
+		case errors.Is(err, domain.ErrTaskNotFound):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "task not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete task"})
+		}
 		return
 	}
 
@@ -83,10 +82,6 @@ func (tc *TaskController) GetAllTasks(c *gin.Context) {
 	tasks, err := tc.TaskUsecase.FetchAllTasks(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch all tasks"})
-		return
-	}
-	if len(tasks) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "there is no task yet"})
 		return
 	}
 	c.IndentedJSON(http.StatusOK, tasks)
@@ -103,7 +98,7 @@ func (tc *TaskController) GetTaskByID(c *gin.Context) {
 
 	task, err := tc.TaskUsecase.FetchByTaskID(c, id)
 	if err != nil {
-		if errors.Is(err, repositories.ErrTaskNotFound) {
+		if errors.Is(err, domain.ErrTaskNotFound) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "task not found"})
 			return
 		}
@@ -121,6 +116,7 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id can not be empty"})
 		return
 	}
+
 	var body struct {
 		Title       string    `json:"title" binding:"required"`
 		Description string    `json:"description"`
@@ -133,16 +129,6 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 		return
 	}
 
-	// Normalize and validate status
-	body.Status = strings.TrimSpace(body.Status)
-	body.Status = strings.ToLower(body.Status)
-
-	// Validate due date
-	if body.DueDate.Before(time.Now()) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "due date can not be in the past"})
-		return
-	}
-
 	task := domain.Task{
 		ID:          id,
 		Title:       body.Title,
@@ -151,29 +137,24 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 		Status:      body.Status,
 	}
 
-	matched, modified, err := tc.TaskUsecase.UpdateByTaskID(c, &task)
+	err := tc.TaskUsecase.UpdateByTaskID(c, &task)
 	if err != nil {
 		switch {
-		case errors.Is(err, repositories.ErrInvalidTaskID):
+		case errors.Is(err, domain.ErrInvalidTaskID):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task id"})
+		case errors.Is(err, domain.ErrInvalidDueDate):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "due date can not be in the past"})
+		case errors.Is(err, domain.ErrTaskNotFound):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "task not found"})
+		case errors.Is(err, domain.ErrNoChangesMade):
+			c.JSON(http.StatusOK, gin.H{
+				"message": "no changes were made",
+				"data":    task,
+			})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update task"})
 		}
 		return
 	}
-
-	if matched == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "task not found"})
-		return
-	}
-
-	if modified == 0 {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "no changes were made",
-			"data":    task,
-		})
-		return
-	}
-
 	c.IndentedJSON(http.StatusOK, task)
 }

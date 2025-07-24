@@ -56,13 +56,6 @@ func NewUserRepository(db mongo.Database, collection string) domain.UserReposito
 	}
 }
 
-// Custom error variables for user-related failures
-var (
-	ErrUserAlreadyExists = errors.New("user already exists")
-	ErrUserNotFound      = errors.New("user not found")
-	ErrInvalidUserID     = errors.New("invalid user id")
-)
-
 // FetchByUsername retrieves a user by their username
 // Returns ErrUserNotFound if no user is found
 func (ur *userRepository) FetchByUsername(ctx context.Context, username string) (domain.User, error) {
@@ -71,11 +64,11 @@ func (ur *userRepository) FetchByUsername(ctx context.Context, username string) 
 		{Key: "username", Value: username},
 	}
 
-	var user domain.User
+	var user User
 	result := users.FindOne(ctx, filter)
 	if result.Err() != nil {
 		if errors.Is(result.Err(), mongo.ErrNoDocuments) {
-			return domain.User{}, ErrUserNotFound
+			return domain.User{}, domain.ErrUserNotFound
 		}
 		return domain.User{}, result.Err()
 	}
@@ -85,7 +78,7 @@ func (ur *userRepository) FetchByUsername(ctx context.Context, username string) 
 		return domain.User{}, err
 	}
 
-	return user, nil
+	return user.toDomain(), nil
 }
 
 // Create inserts a new user into the collection
@@ -119,7 +112,7 @@ func (ur *userRepository) PromoteByUserID(ctx context.Context, userID string) (i
 	// check for valid id
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		return 0, ErrInvalidUserID
+		return 0, domain.ErrInvalidUserID
 	}
 
 	users := ur.database.Collection(ur.collection)
@@ -147,15 +140,37 @@ func (ur *userRepository) FetchAllUsers(ctx context.Context) ([]domain.User, err
 		return results, err
 	}
 	for cursor.TryNext(ctx) {
-		var user domain.User
+		var user User
 		if err := cursor.Decode(&user); err != nil {
 			log.Println("Failed to decode users in GetAllUsers")
 			continue
 		}
-		results = append(results, user)
+		results = append(results, user.toDomain())
 	}
 
 	return results, nil
+}
+
+// CheckIfUsernameExists query the username and returns true with nil if it does
+// or returns 0 if it does not. Might return errors in the way
+func (ur *userRepository) CheckIfUsernameExists(c context.Context, username string) (bool, error) {
+	users := ur.database.Collection(ur.collection)
+	filter := bson.M{"username": username}
+	count, err := users.CountDocuments(c, filter)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// CountUsers counts the number of documents inside users
+func (ur *userRepository) CountUsers(ctx context.Context) (int, error) {
+	users := ur.database.Collection(ur.collection)
+	count, err := users.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
 }
 
 // FetchByUserID retrieves a user by their unique ID
@@ -164,7 +179,7 @@ func (ur *userRepository) FetchByUserID(ctx context.Context, userID string) (dom
 	// check for valid id
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
-		return domain.User{}, ErrInvalidUserID
+		return domain.User{}, domain.ErrInvalidUserID
 	}
 
 	users := ur.database.Collection(ur.collection)
@@ -175,16 +190,16 @@ func (ur *userRepository) FetchByUserID(ctx context.Context, userID string) (dom
 	result := users.FindOne(ctx, filter)
 	if err := result.Err(); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return domain.User{}, ErrUserNotFound
+			return domain.User{}, domain.ErrUserNotFound
 		}
 		return domain.User{}, err
 	}
 
 	// decode the user
-	var user domain.User
+	var user User
 	err = result.Decode(&user)
 	if err != nil {
 		return domain.User{}, err
 	}
-	return user, nil
+	return user.toDomain(), nil
 }
