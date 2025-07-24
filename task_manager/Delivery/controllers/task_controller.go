@@ -144,13 +144,14 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 	}
 
 	task := domain.Task{
+		ID:          id,
 		Title:       body.Title,
 		Description: body.Description,
 		DueDate:     body.DueDate,
 		Status:      body.Status,
 	}
 
-	matched, modified, err := tc.TaskUsecase.UpdateByTaskID(c, id, &task)
+	matched, modified, err := tc.TaskUsecase.UpdateByTaskID(c, &task)
 	if err != nil {
 		switch {
 		case errors.Is(err, repositories.ErrInvalidTaskID):

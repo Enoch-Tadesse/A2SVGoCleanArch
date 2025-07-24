@@ -84,7 +84,7 @@ func (uc *UserController) Login(c *gin.Context) {
 
 	// Build JWT claims
 	claims := map[string]any{
-		"sub":      user.ID.Hex(),
+		"sub":      user.ID,
 		"username": user.Username,
 		"exp":      time.Now().Add(time.Hour * 24).Unix(),
 	}

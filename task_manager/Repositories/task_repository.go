@@ -3,13 +3,50 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"time"
 
 	domain "github.com/A2SVTask7/Domain"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+// DTO used only inside repository
+type Task struct {
+	ID          primitive.ObjectID `bson:"_id,omitempty"`
+	Title       string             `bson:"title"`
+	Description string             `bson:"description"`
+	DueDate     time.Time          `bson:"due_date"`
+	Status      string             `bson:"status"`
+}
+
+// Convert domain.Task → repositories.Task
+func fromDomainToTask(t *domain.Task) (Task, error) {
+	objID, err := primitive.ObjectIDFromHex(t.ID)
+	if err != nil {
+		return Task{}, err
+	}
+	return Task{
+		ID:          objID,
+		Title:       t.Title,
+		Description: t.Description,
+		DueDate:     t.DueDate,
+		Status:      t.Status,
+	}, nil
+}
+
+// Convert repositories.Task → domain.Task
+func (t *Task) toDomain() domain.Task {
+	return domain.Task{
+		ID:          t.ID.Hex(),
+		Title:       t.Title,
+		Description: t.Description,
+		DueDate:     t.DueDate,
+		Status:      t.Status,
+	}
+}
 
 // taskRepository implements the domain.TaskRepository interface
 type taskRepository struct {
@@ -33,23 +70,22 @@ var (
 
 // UpdateByTaskID updates a task in the collection using its ID
 // Returns the number of matched and modified documents
-func (tr *taskRepository) UpdateByTaskID(ctx context.Context, id string, task *domain.Task) (int, int, error) {
-	objID, err := primitive.ObjectIDFromHex(id)
+func (tr *taskRepository) UpdateByTaskID(ctx context.Context, task *domain.Task) (int, int, error) {
+
+	taskEntity, err := fromDomainToTask(task)
 	if err != nil {
-		return 0, 0, ErrInvalidTaskID
+		return 0, 0, err
 	}
-	// set the task id
-	task.ID = objID
 
 	tasks := tr.database.Collection(tr.collection)
 	// prepare filter and update
-	filter := bson.D{{Key: "_id", Value: task.ID}}
+	filter := bson.D{{Key: "_id", Value: taskEntity.ID}}
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
-			{Key: "title", Value: task.Title},
-			{Key: "description", Value: task.Description},
-			{Key: "due_date", Value: task.DueDate},
-			{Key: "status", Value: task.Status},
+			{Key: "title", Value: taskEntity.Title},
+			{Key: "description", Value: taskEntity.Description},
+			{Key: "due_date", Value: taskEntity.DueDate},
+			{Key: "status", Value: taskEntity.Status},
 		}},
 	}
 
@@ -67,7 +103,7 @@ func (tr *taskRepository) DeleteByTaskID(ctx context.Context, taskID string) (in
 	// check for valid ID
 	objID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
-		return 0, ErrInvalidUserID
+		return 0, ErrInvalidTaskID
 	}
 
 	tasks := tr.database.Collection(tr.collection)
@@ -84,13 +120,22 @@ func (tr *taskRepository) DeleteByTaskID(ctx context.Context, taskID string) (in
 // Create inserts a new task into the collection
 // Assigns the generated ObjectID back to the task
 func (tr *taskRepository) Create(ctx context.Context, task *domain.Task) error {
-	tasks := tr.database.Collection(tr.collection)
-
-	result, err := tasks.InsertOne(ctx, task)
+	taskEntity, err := fromDomainToTask(task)
 	if err != nil {
 		return err
 	}
-	task.ID = result.InsertedID.(primitive.ObjectID)
+
+	tasks := tr.database.Collection(tr.collection)
+
+	result, err := tasks.InsertOne(ctx, taskEntity)
+	if err != nil {
+		return err
+	}
+	objID, ok := result.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return fmt.Errorf("unexpected InsertedID type: %T", result.InsertedID)
+	}
+	task.ID = objID.Hex()
 	return nil
 }
 

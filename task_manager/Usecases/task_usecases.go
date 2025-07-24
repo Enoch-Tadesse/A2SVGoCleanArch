@@ -30,10 +30,10 @@ func (tu *taskUsecase) Create(c context.Context, task *domain.Task) error {
 
 // UpdateByTaskID updates an existing task using its ID
 // Returns the number of matched and modified documents
-func (tu *taskUsecase) UpdateByTaskID(c context.Context, id string, task *domain.Task) (int, int, error) {
+func (tu *taskUsecase) UpdateByTaskID(c context.Context, task *domain.Task) (int, int, error) {
 	ctx, cancel := context.WithTimeout(c, tu.contextTimeout)
 	defer cancel()
-	return tu.taskRepository.UpdateByTaskID(ctx, id, task)
+	return tu.taskRepository.UpdateByTaskID(ctx, task)
 }
 
 // DeleteByTaskID deletes a task using its ID

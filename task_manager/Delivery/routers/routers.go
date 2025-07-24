@@ -1,11 +1,9 @@
 package routers
 
 import (
-	"os"
 	"time"
 
 	"github.com/A2SVTask7/Delivery/controllers"
-	domain "github.com/A2SVTask7/Domain"
 	infrastructure "github.com/A2SVTask7/Infrastructure"
 	repositories "github.com/A2SVTask7/Repositories"
 	usecases "github.com/A2SVTask7/Usecases"
@@ -14,8 +12,8 @@ import (
 )
 
 // newTaskRouter sets up routes for task operations accessible by authenticated users
-func newTaskRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGroup) {
-	tr := repositories.NewTaskRepository(db, domain.CollectionTask)
+func newTaskRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGroup, config infrastructure.Config) {
+	tr := repositories.NewTaskRepository(db, config.CollectionTask)
 	tc := &controllers.TaskController{
 		TaskUsecase: usecases.NewTaskUsecase(tr, timeout),
 	}
@@ -24,8 +22,8 @@ func newTaskRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGr
 }
 
 // newUserRouter sets up public routes related to user authentication and registration
-func newUserRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGroup) {
-	ur := repositories.NewUserRepository(db, domain.CollectionUser)
+func newUserRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGroup, config infrastructure.Config) {
+	ur := repositories.NewUserRepository(db, config.CollectionUser)
 	uc := &controllers.UserController{
 		UserUsecase: usecases.NewUserUsecase(ur, timeout),
 	}
@@ -34,13 +32,13 @@ func newUserRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGr
 }
 
 // newAdminRouter sets up routes for admin-level operations including user management and task CRUD
-func newAdminRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGroup) {
-	ur := repositories.NewUserRepository(db, domain.CollectionUser)
+func newAdminRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGroup, config infrastructure.Config) {
+	ur := repositories.NewUserRepository(db, config.CollectionUser)
 	uc := &controllers.UserController{
 		UserUsecase: usecases.NewUserUsecase(ur, timeout),
 	}
 
-	tr := repositories.NewTaskRepository(db, domain.CollectionTask)
+	tr := repositories.NewTaskRepository(db, config.CollectionTask)
 	tc := &controllers.TaskController{
 		TaskUsecase: usecases.NewTaskUsecase(tr, timeout),
 	}
@@ -54,22 +52,24 @@ func newAdminRouter(timeout time.Duration, db mongo.Database, group *gin.RouterG
 }
 
 // SetUp configures all the route groups and applies middleware for authentication and authorization
-func SetUp(timeout time.Duration, db mongo.Database, gin *gin.Engine) {
-	userRepo := repositories.NewUserRepository(db, domain.CollectionUser)
-	jwtService := infrastructure.NewJWTService(os.Getenv("JWT_SECRET")) // Use environment variable for JWT secret
+func SetUp(timeout time.Duration, db mongo.Database, router *gin.Engine, config infrastructure.Config) {
+	userRepo := repositories.NewUserRepository(db, config.CollectionUser)
+	jwtService := infrastructure.NewJWTService(config.JWTSecret) // Use environment variable for JWT secret
+
+	authMiddleware := infrastructure.AuthenticationMiddleware(userRepo, jwtService)
+	adminMiddleware := infrastructure.AuthorizationMiddleware(userRepo, jwtService)
 
 	// Public routes without authentication
-	publicRouter := gin.Group("")
-	newUserRouter(timeout, db, publicRouter)
+	publicRouter := router.Group("")
+	newUserRouter(timeout, db, publicRouter, config)
 
 	// Routes requiring authentication
-	authenticatedRouter := gin.Group("")
-	authenticatedRouter.Use(infrastructure.AuthenticationMiddleware(userRepo, jwtService))
-	newTaskRouter(timeout, db, authenticatedRouter)
+	authenticatedRouter := router.Group("")
+	authenticatedRouter.Use(authMiddleware)
+	newTaskRouter(timeout, db, authenticatedRouter, config)
 
 	// Admin-only routes require both authentication and authorization
-	adminRouter := gin.Group("")
-	adminRouter.Use(infrastructure.AuthenticationMiddleware(userRepo, jwtService))
-	adminRouter.Use(infrastructure.AuthorizationMiddleware(userRepo, jwtService))
-	newAdminRouter(timeout, db, adminRouter)
+	adminRouter := router.Group("")
+	adminRouter.Use(authMiddleware, adminMiddleware)
+	newAdminRouter(timeout, db, adminRouter, config)
 }

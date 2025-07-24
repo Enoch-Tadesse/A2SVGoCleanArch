@@ -63,7 +63,7 @@ func AuthenticationMiddleware(userRepo domain.UserRepository, jwtService JWTServ
 
 		// Set authenticated user into context
 		c.Set("user", AuthenticatedUser{
-			ID:       user.ID.Hex(),
+			ID:       user.ID,
 			Username: user.Username,
 			IsAdmin:  user.IsAdmin,
 		})

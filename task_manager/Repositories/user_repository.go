@@ -12,6 +12,36 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// User represents a user in the system
+type User struct {
+	ID       primitive.ObjectID `bson:"_id,omitempty"` // Unique identifier for the user
+	Username string             `bson:"username"`      // Username of the user
+	Password string             `bson:"password"`      // Hashed password (excluded from JSON responses)
+	IsAdmin  bool               `bson:"is_admin"`      // Flag indicating if the user is an admin
+}
+
+func (u *User) toDomain() domain.User {
+	return domain.User{
+		ID:       u.ID.Hex(),
+		Username: u.Username,
+		Password: u.Password,
+		IsAdmin:  u.IsAdmin,
+	}
+}
+
+func fromDomainToUser(u *domain.User) (User, error) {
+	objID, err := primitive.ObjectIDFromHex(u.ID)
+	if err != nil {
+		return User{}, err
+	}
+	return User{
+		ID:       objID,
+		Username: u.Username,
+		Password: u.Password,
+		IsAdmin:  u.IsAdmin,
+	}, nil
+}
+
 // userRepository implements the domain.UserRepository interface
 type userRepository struct {
 	database   mongo.Database // MongoDB database instance
@@ -61,14 +91,24 @@ func (ur *userRepository) FetchByUsername(ctx context.Context, username string) 
 // Create inserts a new user into the collection
 // Assigns the generated ObjectID to the user
 func (ur *userRepository) Create(ctx context.Context, user *domain.User) error {
+	userEntity, err := fromDomainToUser(user)
+	if err != nil {
+		return err
+	}
+
 	users := ur.database.Collection(ur.collection)
 
 	// Insert user
-	result, err := users.InsertOne(ctx, user)
+	result, err := users.InsertOne(ctx, userEntity)
 	if err != nil {
 		return fmt.Errorf("failed to insert user: %w", err)
 	}
-	user.ID = result.InsertedID.(primitive.ObjectID)
+
+	objID, ok := result.InsertedID.(primitive.ObjectID)
+	if !ok {
+		return fmt.Errorf("unexpected InsertedID type: %T", result.InsertedID)
+	}
+	user.ID = objID.Hex()
 
 	return nil
 }
