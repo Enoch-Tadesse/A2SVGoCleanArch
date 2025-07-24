@@ -28,22 +28,22 @@ type TaskRepository interface {
 	// Create inserts a new task into the data store
 	Create(c context.Context, task *Task) error
 	// FetchByTaskID retrieves a task by its unique ID
-	FetchByTaskID(c context.Context, taskID primitive.ObjectID) (Task, error)
+	FetchByTaskID(c context.Context, taskID string) (Task, error)
 	// FetchAllTasks retrieves all tasks from the data store
 	FetchAllTasks(c context.Context) ([]Task, error)
 	// DeleteByTaskID removes a task by its ID, returning the number of documents deleted
-	DeleteByTaskID(c context.Context, taskID primitive.ObjectID) (int, error)
+	DeleteByTaskID(c context.Context, taskID string) (int, error)
 	// UpdateByTaskID updates an existing task, returning matched and modified counts
-	UpdateByTaskID(c context.Context, task *Task) (int, int, error)
+	UpdateByTaskID(c context.Context, id string, task *Task) (int, int, error)
 }
 
 // TaskUsecase defines the business logic layer for task-related operations
 type TaskUsecase interface {
 	Create(c context.Context, task *Task) error
-	FetchByTaskID(c context.Context, taskID primitive.ObjectID) (Task, error)
+	FetchByTaskID(c context.Context, taskID string) (Task, error)
 	FetchAllTasks(c context.Context) ([]Task, error)
-	DeleteByTaskID(c context.Context, taskID primitive.ObjectID) (int, error)
-	UpdateByTaskID(c context.Context, task *Task) (int, int, error)
+	DeleteByTaskID(c context.Context, taskID string) (int, error)
+	UpdateByTaskID(c context.Context, id string, task *Task) (int, int, error)
 }
 
 // User represents a user in the system
@@ -59,20 +59,20 @@ type UserRepository interface {
 	// Create inserts a new user into the data store
 	Create(c context.Context, user *User) error
 	// FetchByUserID retrieves a user by their unique ID
-	FetchByUserID(c context.Context, userID primitive.ObjectID) (User, error)
+	FetchByUserID(c context.Context, userID string) (User, error)
 	// FetchByUsername retrieves a user by their username
 	FetchByUsername(c context.Context, username string) (User, error)
 	// FetchAllUsers retrieves all users from the data store
 	FetchAllUsers(c context.Context) ([]User, error)
 	// PromoteByUserID sets the IsAdmin flag to true for the specified user
-	PromoteByUserID(c context.Context, userID primitive.ObjectID) (int, error)
+	PromoteByUserID(c context.Context, userID string) (int, error)
 }
 
 // UserUsercase defines the business logic layer for user-related operations
 type UserUsercase interface {
 	Create(c context.Context, user *User) error
-	FetchByUserID(c context.Context, userID primitive.ObjectID) (User, error)
+	FetchByUserID(c context.Context, userID string) (User, error)
 	FetchByUsername(c context.Context, username string) (User, error)
 	FetchAllUsers(c context.Context) ([]User, error)
-	PromoteByUserID(c context.Context, userID primitive.ObjectID) (int, error)
+	PromoteByUserID(c context.Context, userID string) (int, error)
 }

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	domain "github.com/A2SVTask7/Domain"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // taskUsecase implements the domain.TaskUsecase interface
@@ -31,22 +30,22 @@ func (tu *taskUsecase) Create(c context.Context, task *domain.Task) error {
 
 // UpdateByTaskID updates an existing task using its ID
 // Returns the number of matched and modified documents
-func (tu *taskUsecase) UpdateByTaskID(c context.Context, task *domain.Task) (int, int, error) {
+func (tu *taskUsecase) UpdateByTaskID(c context.Context, id string, task *domain.Task) (int, int, error) {
 	ctx, cancel := context.WithTimeout(c, tu.contextTimeout)
 	defer cancel()
-	return tu.taskRepository.UpdateByTaskID(ctx, task)
+	return tu.taskRepository.UpdateByTaskID(ctx, id, task)
 }
 
 // DeleteByTaskID deletes a task using its ID
 // Returns the number of documents deleted
-func (tu *taskUsecase) DeleteByTaskID(c context.Context, taskID primitive.ObjectID) (int, error) {
+func (tu *taskUsecase) DeleteByTaskID(c context.Context, taskID string) (int, error) {
 	ctx, cancel := context.WithTimeout(c, tu.contextTimeout)
 	defer cancel()
 	return tu.taskRepository.DeleteByTaskID(ctx, taskID)
 }
 
 // FetchByTaskID retrieves a single task by its ID
-func (tu *taskUsecase) FetchByTaskID(c context.Context, taskID primitive.ObjectID) (domain.Task, error) {
+func (tu *taskUsecase) FetchByTaskID(c context.Context, taskID string) (domain.Task, error) {
 	ctx, cancel := context.WithTimeout(c, tu.contextTimeout)
 	defer cancel()
 	return tu.taskRepository.FetchByTaskID(ctx, taskID)

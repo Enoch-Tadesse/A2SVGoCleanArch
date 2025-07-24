@@ -3,7 +3,6 @@ package controllers
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -11,7 +10,6 @@ import (
 	domain "github.com/A2SVTask7/Domain"
 	repositories "github.com/A2SVTask7/Repositories"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // TaskController handles incoming HTTP requests related to tasks
@@ -58,20 +56,14 @@ func (tc *TaskController) CreateTask(c *gin.Context) {
 // DeleteTask handles DELETE /tasks/:id
 // Validates the ID and deletes the corresponding task
 func (tc *TaskController) DeleteTask(c *gin.Context) {
-	idStr := c.Param("id")
-	if idStr == "" {
+	id := c.Param("id")
+	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id can not be empty"})
 		return
 	}
 
-	idObj, err := primitive.ObjectIDFromHex(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-
 	// Delete the task
-	count, err := tc.TaskUsecase.DeleteByTaskID(c, idObj)
+	count, err := tc.TaskUsecase.DeleteByTaskID(c, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete task"})
 		return
@@ -103,19 +95,13 @@ func (tc *TaskController) GetAllTasks(c *gin.Context) {
 // GetTaskByID handles GET /tasks/:id
 // Validates the ID and fetches the specific task
 func (tc *TaskController) GetTaskByID(c *gin.Context) {
-	idStr := c.Param("id")
-	if idStr == "" {
+	id := c.Param("id")
+	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
 		return
 	}
 
-	idObj, err := primitive.ObjectIDFromHex(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-
-	task, err := tc.TaskUsecase.FetchByTaskID(c, idObj)
+	task, err := tc.TaskUsecase.FetchByTaskID(c, id)
 	if err != nil {
 		if errors.Is(err, repositories.ErrTaskNotFound) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "task not found"})
@@ -130,18 +116,11 @@ func (tc *TaskController) GetTaskByID(c *gin.Context) {
 // UpdateTask handles PUT /tasks/:id
 // Validates the ID and request body, updates the task fields
 func (tc *TaskController) UpdateTask(c *gin.Context) {
-	idStr := c.Param("id")
-	if idStr == "" {
+	id := c.Param("id")
+	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id can not be empty"})
 		return
 	}
-
-	objID, err := primitive.ObjectIDFromHex(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-
 	var body struct {
 		Title       string    `json:"title" binding:"required"`
 		Description string    `json:"description"`
@@ -165,17 +144,20 @@ func (tc *TaskController) UpdateTask(c *gin.Context) {
 	}
 
 	task := domain.Task{
-		ID:          objID,
 		Title:       body.Title,
 		Description: body.Description,
 		DueDate:     body.DueDate,
 		Status:      body.Status,
 	}
 
-	matched, modified, err := tc.TaskUsecase.UpdateByTaskID(c, &task)
+	matched, modified, err := tc.TaskUsecase.UpdateByTaskID(c, id, &task)
 	if err != nil {
-		log.Println(err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update task"})
+		switch {
+		case errors.Is(err, repositories.ErrInvalidTaskID):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task id"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update task"})
+		}
 		return
 	}
 

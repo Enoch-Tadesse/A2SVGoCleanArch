@@ -5,7 +5,6 @@ import (
 	"time"
 
 	domain "github.com/A2SVTask7/Domain"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // userUsecase implements the domain.UserUsercase interface
@@ -38,7 +37,7 @@ func (uu *userUsecase) Create(c context.Context, user *domain.User) error {
 
 // PromoteByUserID promotes a user to admin by setting IsAdmin to true
 // Returns the number of documents modified
-func (uu *userUsecase) PromoteByUserID(c context.Context, userID primitive.ObjectID) (int, error) {
+func (uu *userUsecase) PromoteByUserID(c context.Context, userID string) (int, error) {
 	ctx, cancel := context.WithTimeout(c, uu.contextTimeout)
 	defer cancel()
 	return uu.userRepository.PromoteByUserID(ctx, userID)
@@ -52,7 +51,7 @@ func (uu *userUsecase) FetchAllUsers(c context.Context) ([]domain.User, error) {
 }
 
 // FetchByUserID retrieves a user by their unique ID
-func (uu *userUsecase) FetchByUserID(c context.Context, userID primitive.ObjectID) (domain.User, error) {
+func (uu *userUsecase) FetchByUserID(c context.Context, userID string) (domain.User, error) {
 	ctx, cancel := context.WithTimeout(c, uu.contextTimeout)
 	defer cancel()
 	return uu.userRepository.FetchByUserID(ctx, userID)

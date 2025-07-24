@@ -10,7 +10,6 @@ import (
 	infrastructure "github.com/A2SVTask7/Infrastructure"
 	repositories "github.com/A2SVTask7/Repositories"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // UserController handles user-related HTTP endpoints
@@ -21,19 +20,13 @@ type UserController struct {
 // GetUserByID handles GET /users/:id
 // Fetches a user by their ObjectID
 func (uc *UserController) GetUserByID(c *gin.Context) {
-	idStr := c.Param("id")
-	if idStr == "" {
+	id := c.Param("id")
+	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id is required"})
 		return
 	}
 
-	idObj, err := primitive.ObjectIDFromHex(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-
-	user, err := uc.UserUsecase.FetchByUserID(c, idObj)
+	user, err := uc.UserUsecase.FetchByUserID(c, id)
 	if err != nil {
 		if errors.Is(err, repositories.ErrUserNotFound) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "user not found"})
@@ -112,19 +105,13 @@ func (uc *UserController) Login(c *gin.Context) {
 // Promote handles PUT /users/:id/promote
 // Promotes a user to admin by their ID
 func (uc *UserController) Promote(c *gin.Context) {
-	idStr := c.Param("id")
-	if idStr == "" {
+	id := c.Param("id")
+	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id not found"})
 		return
 	}
 
-	objID, err := primitive.ObjectIDFromHex(idStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-
-	count, err := uc.UserUsecase.PromoteByUserID(c, objID)
+	count, err := uc.UserUsecase.PromoteByUserID(c, id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
 		return

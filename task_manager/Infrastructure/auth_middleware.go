@@ -9,12 +9,11 @@ import (
 	domain "github.com/A2SVTask7/Domain"
 	repositories "github.com/A2SVTask7/Repositories"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // AuthenticatedUser represents a user extracted from a validated JWT
 type AuthenticatedUser struct {
-	ID       primitive.ObjectID
+	ID       string
 	Username string
 	IsAdmin  bool
 }
@@ -43,20 +42,15 @@ func AuthenticationMiddleware(userRepo domain.UserRepository, jwtService JWTServ
 			return
 		}
 
-		// Convert Subject to ObjectID
-		userID, err := primitive.ObjectIDFromHex(claims.Subject)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
-			return
-		}
-
 		// Check user exists in DB
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		user, err := userRepo.FetchByUserID(ctx, userID)
+		user, err := userRepo.FetchByUserID(ctx, claims.Subject)
 		if err != nil {
 			switch {
+			case errors.Is(err, repositories.ErrInvalidTaskID):
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid user id"})
 			case errors.Is(err, repositories.ErrUserNotFound):
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user does not exist"})
 			case errors.Is(err, context.DeadlineExceeded):
@@ -69,7 +63,7 @@ func AuthenticationMiddleware(userRepo domain.UserRepository, jwtService JWTServ
 
 		// Set authenticated user into context
 		c.Set("user", AuthenticatedUser{
-			ID:       user.ID,
+			ID:       user.ID.Hex(),
 			Username: user.Username,
 			IsAdmin:  user.IsAdmin,
 		})

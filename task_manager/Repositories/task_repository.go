@@ -27,14 +27,21 @@ func NewTaskRepository(db mongo.Database, collection string) domain.TaskReposito
 
 // ErrTaskNotFound is returned when a task with the given ID does not exist
 var (
-	ErrTaskNotFound = errors.New("task not found")
+	ErrTaskNotFound  = errors.New("task not found")
+	ErrInvalidTaskID = errors.New("invalid task id")
 )
 
 // UpdateByTaskID updates a task in the collection using its ID
 // Returns the number of matched and modified documents
-func (tr *taskRepository) UpdateByTaskID(ctx context.Context, task *domain.Task) (int, int, error) {
-	tasks := tr.database.Collection(tr.collection)
+func (tr *taskRepository) UpdateByTaskID(ctx context.Context, id string, task *domain.Task) (int, int, error) {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return 0, 0, ErrInvalidTaskID
+	}
+	// set the task id
+	task.ID = objID
 
+	tasks := tr.database.Collection(tr.collection)
 	// prepare filter and update
 	filter := bson.D{{Key: "_id", Value: task.ID}}
 	update := bson.D{
@@ -56,10 +63,16 @@ func (tr *taskRepository) UpdateByTaskID(ctx context.Context, task *domain.Task)
 
 // DeleteByTaskID deletes a task by its ID
 // Returns the number of documents deleted
-func (tr *taskRepository) DeleteByTaskID(ctx context.Context, taskID primitive.ObjectID) (int, error) {
+func (tr *taskRepository) DeleteByTaskID(ctx context.Context, taskID string) (int, error) {
+	// check for valid ID
+	objID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return 0, ErrInvalidUserID
+	}
+
 	tasks := tr.database.Collection(tr.collection)
 
-	filter := bson.D{{Key: "_id", Value: taskID}}
+	filter := bson.D{{Key: "_id", Value: objID}}
 
 	result, err := tasks.DeleteOne(ctx, filter)
 	if err != nil {
@@ -83,11 +96,17 @@ func (tr *taskRepository) Create(ctx context.Context, task *domain.Task) error {
 
 // FetchByTaskID retrieves a task by its ID
 // Returns ErrTaskNotFound if no document is found
-func (tr *taskRepository) FetchByTaskID(ctx context.Context, taskID primitive.ObjectID) (domain.Task, error) {
+func (tr *taskRepository) FetchByTaskID(ctx context.Context, taskID string) (domain.Task, error) {
+	// check for valid ID
+	objID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return domain.Task{}, ErrInvalidUserID
+	}
+
 	tasks := tr.database.Collection(tr.collection)
 
 	// prepare filter
-	filter := bson.D{{Key: "_id", Value: taskID}}
+	filter := bson.D{{Key: "_id", Value: objID}}
 
 	// fetch the result
 	result := tasks.FindOne(ctx, filter)
@@ -100,7 +119,7 @@ func (tr *taskRepository) FetchByTaskID(ctx context.Context, taskID primitive.Ob
 
 	// decode the task
 	var task domain.Task
-	err := result.Decode(&task)
+	err = result.Decode(&task)
 	if err != nil {
 		return domain.Task{}, err
 	}

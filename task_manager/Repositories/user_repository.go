@@ -30,6 +30,7 @@ func NewUserRepository(db mongo.Database, collection string) domain.UserReposito
 var (
 	ErrUserAlreadyExists = errors.New("user already exists")
 	ErrUserNotFound      = errors.New("user not found")
+	ErrInvalidUserID     = errors.New("invalid user id")
 )
 
 // FetchByUsername retrieves a user by their username
@@ -74,7 +75,13 @@ func (ur *userRepository) Create(ctx context.Context, user *domain.User) error {
 
 // PromoteByUserID sets the IsAdmin field to true for a specific user
 // Returns the number of matched documents
-func (ur *userRepository) PromoteByUserID(ctx context.Context, userID primitive.ObjectID) (int, error) {
+func (ur *userRepository) PromoteByUserID(ctx context.Context, userID string) (int, error) {
+	// check for valid id
+	objID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return 0, ErrInvalidUserID
+	}
+
 	users := ur.database.Collection(ur.collection)
 	update := bson.D{
 		{Key: "$set", Value: bson.D{
@@ -82,7 +89,7 @@ func (ur *userRepository) PromoteByUserID(ctx context.Context, userID primitive.
 		}},
 	}
 
-	result, err := users.UpdateByID(ctx, userID, update)
+	result, err := users.UpdateByID(ctx, objID, update)
 	if err != nil {
 		return 0, err
 	}
@@ -113,11 +120,16 @@ func (ur *userRepository) FetchAllUsers(ctx context.Context) ([]domain.User, err
 
 // FetchByUserID retrieves a user by their unique ID
 // Returns ErrUserNotFound if no user is found
-func (ur *userRepository) FetchByUserID(ctx context.Context, userID primitive.ObjectID) (domain.User, error) {
-	users := ur.database.Collection(ur.collection)
+func (ur *userRepository) FetchByUserID(ctx context.Context, userID string) (domain.User, error) {
+	// check for valid id
+	objID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return domain.User{}, ErrInvalidUserID
+	}
 
+	users := ur.database.Collection(ur.collection)
 	// prepare filter
-	filter := bson.D{{Key: "_id", Value: userID}}
+	filter := bson.D{{Key: "_id", Value: objID}}
 
 	// fetch the result
 	result := users.FindOne(ctx, filter)
@@ -130,7 +142,7 @@ func (ur *userRepository) FetchByUserID(ctx context.Context, userID primitive.Ob
 
 	// decode the user
 	var user domain.User
-	err := result.Decode(&user)
+	err = result.Decode(&user)
 	if err != nil {
 		return domain.User{}, err
 	}
