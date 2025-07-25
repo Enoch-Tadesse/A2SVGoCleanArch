@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/A2SVTask7/Delivery/controllers"
-	mock "github.com/A2SVTask7/tests/controllers/mocks"
+	mock "github.com/A2SVTask7/tests/controllers_test/mocks"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/suite"
 )

@@ -1,4 +1,5 @@
 package users
+
 // this file contails dommon shared data and struct within users
 
 import (
