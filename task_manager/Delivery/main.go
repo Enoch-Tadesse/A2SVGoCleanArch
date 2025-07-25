@@ -13,7 +13,10 @@ func main() {
 	infrastructure.LoadConfig()
 	config := infrastructure.AppConfig
 
-	db := infrastructure.InitMongo(config.MongoURI) // Initialize MongoDB connection
+	db, err := infrastructure.InitMongo(context.TODO(), config.MongoURI, config.DBName) // Initialize MongoDB connection
+	if err != nil {
+		log.Fatal("Failed to connect to db: ", err.Error())
+	}
 	defer func() {
 		_ = db.Client().Disconnect(context.Background()) // Disconnect Mongo client on program exit
 	}()

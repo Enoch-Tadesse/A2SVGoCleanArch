@@ -2,25 +2,23 @@ package infrastructure
 
 import (
 	"context"
-	"log"
-	"os"
+	"fmt"
 
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // initMongo creates a new MongoDB client and verifies the connection
-func InitMongo(uri string) *mongo.Database {
+func InitMongo(ctx context.Context, uri string, dbName string) (*mongo.Database, error) {
 	clientOpts := options.Client().ApplyURI(uri)
-	client, err := mongo.Connect(context.Background(), clientOpts)
+	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {
-		log.Fatalf("❌ MongoDB connection failed: %v", err)
+		return nil, fmt.Errorf("mongo connect failed: %w", err)
 	}
 
-	if err := client.Ping(context.Background(), nil); err != nil {
-		log.Fatalf("❌ MongoDB ping failed: %v", err)
+	if err := client.Ping(ctx, nil); err != nil {
+		return nil, fmt.Errorf("mongo ping failed: %w", err)
 	}
 
-	dbName := os.Getenv("DB_NAME") // Get DB name again for clarity, could also pass in
-	return client.Database(dbName)
+	return client.Database(dbName), nil
 }
