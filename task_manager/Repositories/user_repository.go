@@ -84,9 +84,10 @@ func (ur *userRepository) FetchByUsername(ctx context.Context, username string) 
 // Create inserts a new user into the collection
 // Assigns the generated ObjectID to the user
 func (ur *userRepository) Create(ctx context.Context, user *domain.User) error {
-	userEntity, err := fromDomainToUser(user)
-	if err != nil {
-		return err
+	userEntity := User{
+		Username: user.Username,
+		Password: user.Password,
+		IsAdmin:  user.IsAdmin,
 	}
 
 	users := ur.database.Collection(ur.collection)

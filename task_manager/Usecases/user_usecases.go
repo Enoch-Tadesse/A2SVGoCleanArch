@@ -3,6 +3,7 @@ package usecases
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	domain "github.com/A2SVTask7/Domain"
@@ -77,15 +78,44 @@ func (uu *userUsecase) FetchByUsername(c context.Context, username string) (doma
 func (uu *userUsecase) Create(c context.Context, user *domain.User) error {
 	ctx, cancel := context.WithTimeout(c, uu.contextTimeout)
 	defer cancel()
+
+	hashedString, err := infrastructure.HashPassword(user.Password)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+	user.Password = hashedString
+
+	exists, err := uu.CheckIfUsernameExists(c, user.Username)
+	if err != nil {
+		return errors.New("failed to check if username exists")
+	}
+	if exists {
+		return domain.ErrUserAlreadyExists
+	}
+
+	count, err := uu.CountUsers(c)
+	if err != nil {
+		return errors.New("failed to count users")
+	}
+
+	user.IsAdmin = count == 0
 	return uu.userRepository.Create(ctx, user)
 }
 
 // PromoteByUserID promotes a user to admin by setting IsAdmin to true
 // Returns the number of documents modified
-func (uu *userUsecase) PromoteByUserID(c context.Context, userID string) (int, error) {
+func (uu *userUsecase) PromoteByUserID(c context.Context, userID string) error {
 	ctx, cancel := context.WithTimeout(c, uu.contextTimeout)
 	defer cancel()
-	return uu.userRepository.PromoteByUserID(ctx, userID)
+	count, err := uu.userRepository.PromoteByUserID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update user: %s", err.Error())
+	}
+	if count == 0 {
+		return domain.ErrUserNotFound
+	}
+	return nil
+
 }
 
 // FetchAllUsers retrieves all users from the repository

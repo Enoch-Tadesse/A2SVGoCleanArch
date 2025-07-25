@@ -97,7 +97,7 @@ func (tc *TaskController) GetTaskByID(c *gin.Context) {
 	task, err := tc.TaskUsecase.FetchByTaskID(c, id)
 	if err != nil {
 		if errors.Is(err, domain.ErrTaskNotFound) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "task not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "task not found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch task"})

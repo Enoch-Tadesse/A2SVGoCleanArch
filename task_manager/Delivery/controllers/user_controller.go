@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	domain "github.com/A2SVTask7/Domain"
-	infrastructure "github.com/A2SVTask7/Infrastructure"
 	"github.com/gin-gonic/gin"
 )
 
@@ -89,17 +88,18 @@ func (uc *UserController) Promote(c *gin.Context) {
 		return
 	}
 
-	count, err := uc.UserUsecase.PromoteByUserID(c, id)
+	err := uc.UserUsecase.PromoteByUserID(c, id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
-		return
-	}
-	if count == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user not found"})
+		switch {
+		case errors.Is(err, domain.ErrUserNotFound):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "user not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update user"})
+		}
 		return
 	}
 
-	c.IndentedJSON(http.StatusOK, gin.H{"error": "user updated successfully"})
+	c.IndentedJSON(http.StatusOK, gin.H{"message": "user updated successfully"})
 }
 
 // Register handles POST /auth/register
@@ -107,8 +107,8 @@ func (uc *UserController) Promote(c *gin.Context) {
 // The first user is automatically assigned admin rights
 func (uc *UserController) Register(c *gin.Context) {
 	var body struct {
-		Username string `json:"username" bson:"username" binding:"required"`
-		Password string `json:"password" bson:"-" binding:"required"`
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -116,52 +116,18 @@ func (uc *UserController) Register(c *gin.Context) {
 		return
 	}
 
-	hashedString, err := infrastructure.HashPassword(body.Password)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash user password"})
-		return
-	}
-
-	exists, err := uc.UserUsecase.CheckIfUsernameExists(c, body.Username)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check username"})
-		return
-	}
-	if exists {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "username already exists"})
-		return
-	}
-
-	// users, err := uc.UserUsecase.FetchAllUsers(c)
-	// if err != nil {
-	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count users document"})
-	// 	return
-	// }
-	//
-	// // Check for username uniqueness
-	// for _, user := range users {
-	// 	if user.Username == body.Username {
-	// 		c.JSON(http.StatusBadRequest, gin.H{"error": "username already exists"})
-	// 		return
-	// 	}
-	// }
-	//
-
-	count, err := uc.UserUsecase.CountUsers(c)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count users"})
-		return
-	}
-
 	user := domain.User{
 		Username: body.Username,
-		Password: hashedString,
-		IsAdmin:  count == 0, // first registered user becomes admin
 	}
 
-	err = uc.UserUsecase.Create(c, &user)
+	err := uc.UserUsecase.Create(c, &user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to insert user document"})
+		switch {
+		case errors.Is(err, domain.ErrUserAlreadyExists):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "username is already taken"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to insert user document"})
+		}
 		return
 	}
 
