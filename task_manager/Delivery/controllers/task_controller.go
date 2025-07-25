@@ -3,7 +3,6 @@ package controllers
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
@@ -19,7 +18,6 @@ type TaskController struct {
 // CreateTask handles POST /tasks
 // Validates the request, checks for due date, creates a new task
 func (tc *TaskController) CreateTask(c *gin.Context) {
-	log.Println("herer")
 	var body struct {
 		Title       string    `json:"title" binding:"required"`
 		Description string    `json:"description"`
