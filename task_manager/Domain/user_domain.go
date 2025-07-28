@@ -37,7 +37,7 @@ type UserUsecase interface {
 	FetchByUserID(c context.Context, userID string) (User, error)
 	FetchByUsername(c context.Context, username string) (User, error)
 	FetchAllUsers(c context.Context) ([]User, error)
-	PromoteByUserID(c context.Context, userID string)  error
+	PromoteByUserID(c context.Context, userID string) error
 	CountUsers(c context.Context) (int, error)
 	CheckIfUsernameExists(c context.Context, username string) (bool, error)
 	Login(ctx context.Context, username, password string) (User, string, error)

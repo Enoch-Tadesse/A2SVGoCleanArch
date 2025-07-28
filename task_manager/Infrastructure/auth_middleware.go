@@ -19,7 +19,7 @@ type AuthenticatedUser struct {
 
 // AuthenticationMiddleware validates the JWT from the "Authentication" cookie,
 // fetches the user from the database, and attaches it to the request context
-func AuthenticationMiddleware(userRepo domain.UserRepository, jwtService JWTService) gin.HandlerFunc {
+func AuthenticationMiddleware(userRepo domain.UserRepository, jwtService domain.JWTService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get token
 		tokenString, err := c.Cookie("Authentication")
@@ -36,7 +36,7 @@ func AuthenticationMiddleware(userRepo domain.UserRepository, jwtService JWTServ
 		}
 
 		// Check claims
-		if claims.Username == "" || claims.Subject == "" {
+		if claims["username"] == "" || claims["sub"] == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing claim ID or Username"})
 			return
 		}
@@ -45,7 +45,13 @@ func AuthenticationMiddleware(userRepo domain.UserRepository, jwtService JWTServ
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		user, err := userRepo.FetchByUserID(ctx, claims.Subject)
+		sub, ok := claims["sub"].(string)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "failed to assert sub"})
+			return
+		}
+
+		user, err := userRepo.FetchByUserID(ctx, sub)
 		if err != nil {
 			switch {
 			case errors.Is(err, domain.ErrInvalidTaskID):
@@ -71,7 +77,7 @@ func AuthenticationMiddleware(userRepo domain.UserRepository, jwtService JWTServ
 }
 
 // AuthorizationMiddleware ensures that the authenticated user is an admin
-func AuthorizationMiddleware(userRepo domain.UserRepository, jwtService JWTService) gin.HandlerFunc {
+func AuthorizationMiddleware(userRepo domain.UserRepository, jwtService domain.JWTService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Get the user from context (must be set by AuthenticationMiddleware)
 		u, ok := c.Get("user")

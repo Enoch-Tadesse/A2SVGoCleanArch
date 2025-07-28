@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	domain "github.com/A2SVTask7/Domain"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -14,19 +15,13 @@ type CustomClaims struct {
 	jwt.RegisteredClaims
 }
 
-// JWTService defines the interface for generating and validating JWT tokens
-type JWTService interface {
-	Validate(tokenString string) (*CustomClaims, error) // Validates a token and returns claims
-	Generate(claims map[string]any) (string, error)     // Generates a signed JWT string from claims
-}
-
 // jwtService is a concrete implementation of JWTService
 type jwtService struct {
 	secret []byte // Secret key used for signing and verifying JWTs
 }
 
 // NewJWTService creates a new instance of jwtService using the provided secret
-func NewJWTService(secret string) JWTService {
+func NewJWTService(secret string) domain.JWTService {
 	return &jwtService{
 		secret: []byte(secret),
 	}
@@ -50,7 +45,7 @@ func (js *jwtService) Generate(claims map[string]any) (string, error) {
 }
 
 // Validate parses and verifies a JWT token string, returning its claims if valid
-func (js *jwtService) Validate(tokenString string) (*CustomClaims, error) {
+func (js *jwtService) Validate(tokenString string) (map[string]any, error) {
 	// Load the JWT secret from environment variables
 	jwt_secret := []byte(os.Getenv("JWT_SECRET"))
 
@@ -59,18 +54,22 @@ func (js *jwtService) Validate(tokenString string) (*CustomClaims, error) {
 		return jwt_secret, nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	if err != nil {
-		return &CustomClaims{}, err
+		return nil, err
 	}
 
 	// Assert the claims and check token validity
 	claims, ok := token.Claims.(*CustomClaims)
 	if !ok || !token.Valid {
-		return &CustomClaims{}, fmt.Errorf("invalid token claims: %w", err)
+		return nil, fmt.Errorf("invalid token claims: %w", err)
 	}
 
 	// Check for expiration
 	if claims.ExpiresAt == nil || time.Now().After(claims.ExpiresAt.Time) {
-		return &CustomClaims{}, fmt.Errorf("token expired")
+		return nil, fmt.Errorf("token expired")
 	}
-	return claims, err
+	return map[string]any{
+		"sub":      claims.Subject,
+		"username": claims.Username,
+		"exp":      claims.ExpiresAt.Time.Unix(),
+	}, err
 }

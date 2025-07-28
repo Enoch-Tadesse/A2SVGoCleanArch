@@ -7,19 +7,22 @@ import (
 	"time"
 
 	domain "github.com/A2SVTask7/Domain"
-	infrastructure "github.com/A2SVTask7/Infrastructure"
 )
 
 // userUsecase implements the domain.UserUsercase interface
 type userUsecase struct {
-	userRepository domain.UserRepository // Repository for user data operations
-	contextTimeout time.Duration         // Timeout duration for usecase operations
+	userRepository domain.UserRepository   // Repository for user data operations
+	jwtService     domain.JWTService       // jwt services for login
+	hasher         domain.IPasswordService // hasher is a service for hashing and comparing passwords
+	contextTimeout time.Duration           // Timeout duration for usecase operations
 }
 
 // NewUserUsecase creates a new instance of userUsecase
-func NewUserUsecase(userRepository domain.UserRepository, timeout time.Duration) domain.UserUsecase {
+func NewUserUsecase(userRepository domain.UserRepository, jwtService domain.JWTService, passwordService domain.IPasswordService, timeout time.Duration) domain.UserUsecase {
 	return &userUsecase{
 		userRepository: userRepository,
+		jwtService:     jwtService,
+		hasher:         passwordService,
 		contextTimeout: timeout,
 	}
 }
@@ -34,7 +37,7 @@ func (uu *userUsecase) Login(ctx context.Context, username, password string) (do
 		return domain.User{}, "", err
 	}
 
-	if err := infrastructure.ComparePassword(user.Password, password); err != nil {
+	if err := uu.hasher.ComparePassword(user.Password, password); err != nil {
 		return domain.User{}, "", domain.ErrIncorrectPassword // define this in domain if you want
 	}
 
@@ -44,8 +47,8 @@ func (uu *userUsecase) Login(ctx context.Context, username, password string) (do
 		"exp":      time.Now().Add(24 * time.Hour).Unix(),
 	}
 
-	js := infrastructure.NewJWTService(infrastructure.AppConfig.JWTSecret)
-	token, err := js.Generate(claims)
+	// js := infrastructure.NewJWTService(infrastructure.AppConfig.JWTSecret)
+	token, err := uu.jwtService.Generate(claims)
 	if err != nil {
 		return domain.User{}, "", err
 	}
@@ -79,7 +82,7 @@ func (uu *userUsecase) Create(c context.Context, user *domain.User) error {
 	ctx, cancel := context.WithTimeout(c, uu.contextTimeout)
 	defer cancel()
 
-	hashedString, err := infrastructure.HashPassword(user.Password)
+	hashedString, err := uu.hasher.HashPassword(user.Password)
 	if err != nil {
 		return errors.New("failed to hash password")
 	}

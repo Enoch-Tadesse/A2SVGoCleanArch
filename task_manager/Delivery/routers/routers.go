@@ -24,8 +24,10 @@ func newTaskRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGr
 // newUserRouter sets up public routes related to user authentication and registration
 func newUserRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGroup, config infrastructure.Config) {
 	ur := repositories.NewUserRepository(db, config.CollectionUser)
+	jwt := infrastructure.NewJWTService(config.JWTSecret)
+	pws := infrastructure.NewPasswordService()
 	uc := &controllers.UserController{
-		UserUsecase: usecases.NewUserUsecase(ur, timeout),
+		UserUsecase: usecases.NewUserUsecase(ur, jwt, pws, timeout),
 	}
 	group.POST("/login", uc.Login)
 	group.POST("/register", uc.Register)
@@ -34,8 +36,10 @@ func newUserRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGr
 // newAdminRouter sets up routes for admin-level operations including user management and task CRUD
 func newAdminRouter(timeout time.Duration, db mongo.Database, group *gin.RouterGroup, config infrastructure.Config) {
 	ur := repositories.NewUserRepository(db, config.CollectionUser)
+	jwt := infrastructure.NewJWTService(config.JWTSecret)
+	pws := infrastructure.NewPasswordService()
 	uc := &controllers.UserController{
-		UserUsecase: usecases.NewUserUsecase(ur, timeout),
+		UserUsecase: usecases.NewUserUsecase(ur, jwt, pws, timeout),
 	}
 
 	tr := repositories.NewTaskRepository(db, config.CollectionTask)
